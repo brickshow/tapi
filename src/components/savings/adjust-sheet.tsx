@@ -103,7 +103,16 @@ export function AdjustSheet({
               >
                 <Minus size={26} color="#fff" />
               </Pressable>
-              <Text style={s.number}>{valid ? count : "—"}</Text>
+              <TextInput
+                accessibilityLabel="Coin count"
+                accessibilityHint="Enter the total number of coins, or use the plus and minus buttons."
+                value={value}
+                onChangeText={(text) => setValue(text.replace(/\D/g, "").slice(0, 6))}
+                keyboardType="number-pad"
+                selectTextOnFocus
+                maxLength={6}
+                style={s.numberInput}
+              />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Increase count"
@@ -113,19 +122,6 @@ export function AdjustSheet({
               >
                 <Plus size={27} color="#fff" />
               </Pressable>
-            </View>
-            <View style={[ui.between, { marginVertical: 16 }]}>
-              <Text style={ui.body}>Or enter a number</Text>
-              <TextInput
-                accessibilityLabel="Coin count"
-                value={value}
-                onChangeText={(text) =>
-                  setValue(text.replace(/\D/g, "").slice(0, 6))
-                }
-                keyboardType="number-pad"
-                selectTextOnFocus
-                style={s.input}
-              />
             </View>
             <View style={s.actions}>
               <View style={{ flex: 0.8 }}>
@@ -196,16 +192,13 @@ const s = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  number: { fontWeight: "800", fontSize: 43, color: ink },
-  input: {
-    borderWidth: 1,
-    borderColor: "#d8dbe0",
-    borderRadius: 7,
-    height: 44,
-    width: 140,
-    fontSize: 20,
-    fontWeight: "600",
-    color: muted,
+  numberInput: {
+    width: 150,
+    height: 58,
+    padding: 0,
+    fontSize: 43,
+    fontWeight: "800",
+    color: ink,
     textAlign: "center",
   },
   actions: { flexDirection: "row", gap: 10 },

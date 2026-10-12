@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { readSavings, writeSavings } from "@/storage/database";
 import {
   createContext,
   useContext,
@@ -19,54 +20,38 @@ export type Activity = {
   after: number;
   at: string;
 };
+export type Goal = { id: string; name: string; amount: number };
 type Savings = {
   counts: Record<Denomination, number>;
   activities: Activity[];
-  goal: { name: string; amount: number };
+  goals: Goal[];
+  activeGoalId: string;
   name: string;
+  onboardingComplete: boolean;
 };
 const KEY = "tapi:savings:v1";
-function sampleTime(day: number, hour: number, minute: number) {
-  const date = new Date();
-  date.setDate(date.getDate() + day);
-  date.setHours(hour, minute, 0, 0);
-  return date.toISOString();
-}
 function initialSavings(): Savings {
   return {
-    counts: { 20: 30, 10: 35, 5: 50, 1: 50 },
+    counts: { 20: 0, 10: 0, 5: 0, 1: 0 },
     name: "Brix",
-    goal: { name: "New phone", amount: 5000 },
-    activities: [
-      {
-        id: "sample-20",
-        denomination: 20,
-        quantity: 1,
-        type: "Added",
-        before: 29,
-        after: 30,
-        at: sampleTime(0, 9, 40),
-      },
-      {
-        id: "sample-10",
-        denomination: 10,
-        quantity: 1,
-        type: "Added",
-        before: 34,
-        after: 35,
-        at: sampleTime(0, 9, 35),
-      },
-      {
-        id: "sample-adjust",
-        denomination: 5,
-        quantity: -5,
-        type: "Adjustment",
-        before: 50,
-        after: 45,
-        at: sampleTime(-1, 18, 15),
-      },
-    ],
+    onboardingComplete: false,
+    goals: [{ id: "first-goal", name: "New phone", amount: 5000 }],
+    activeGoalId: "first-goal",
+    activities: [],
   };
+}
+function isGoal(value: unknown): value is Goal {
+  if (!value || typeof value !== "object") return false;
+  const goal = value as Goal;
+  return typeof goal.id === "string" && !!goal.id && typeof goal.name === "string" && !!goal.name.trim() && Number.isFinite(goal.amount) && goal.amount > 0;
+}
+function migrateSavings(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  const original = value as Record<string, unknown>;
+  const stored: Record<string, unknown> = { ...original, onboardingComplete: original.onboardingComplete === undefined ? true : original.onboardingComplete };
+  if (stored.goals !== undefined) return stored;
+  const legacy = stored.goal as { name?: unknown; amount?: unknown } | undefined;
+  return { ...stored, goals: [{ id: "first-goal", name: legacy?.name, amount: legacy?.amount }], activeGoalId: "first-goal" };
 }
 function isSavings(value: unknown): value is Savings {
   if (!value || typeof value !== "object") return false;
@@ -88,10 +73,11 @@ function isSavings(value: unknown): value is Savings {
         Number.isFinite(Date.parse(a.at)),
     ) &&
     typeof state.name === "string" &&
-    !!state.goal &&
-    typeof state.goal.name === "string" &&
-    Number.isFinite(state.goal.amount) &&
-    state.goal.amount > 0
+    typeof state.onboardingComplete === "boolean" &&
+    Array.isArray(state.goals) && state.goals.length > 0 &&
+    state.goals.every(isGoal) &&
+    new Set(state.goals.map((goal) => goal.id)).size === state.goals.length &&
+    state.goals.some((goal) => goal.id === state.activeGoalId)
   );
 }
 type Store = {
@@ -103,7 +89,12 @@ type Store = {
   adjust: (d: Denomination, count: number) => void;
   correct: (id: string, count: number) => void;
   setGoal: (name: string, amount: number) => void;
+  addGoal: (name: string, amount: number) => void;
+  selectGoal: (id: string) => void;
+  removeGoal: (id: string) => void;
+  goal: Goal;
   setName: (name: string) => void;
+  completeOnboarding: (name: string, goalName: string, amount: number) => Promise<boolean>;
   total: number;
   coinCount: number;
 };
@@ -114,35 +105,61 @@ export function SavingsProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const writes = useRef(Promise.resolve());
   const current = useRef(state);
+  const storageReady = useRef(false);
   useEffect(() => {
     let active = true;
-    AsyncStorage.getItem(KEY)
-      .then((raw) => {
+    readSavings()
+      .then(async (databaseData) => {
+        const legacyData = databaseData === null ? await AsyncStorage.getItem(KEY) : null;
+        const raw = databaseData ?? legacyData;
+        const stored = raw === null ? initialSavings() : migrateSavings(JSON.parse(raw));
+        if (!isSavings(stored)) throw new Error("Invalid savings data");
+        // Commit migration before enabling edits. Keep legacy data as a recovery copy.
+        if (databaseData !== JSON.stringify(stored)) await writeSavings(JSON.stringify(stored));
         if (!active) return;
-        if (raw) {
-          const stored: unknown = JSON.parse(raw);
-          if (!isSavings(stored)) throw new Error("Invalid savings data");
-          current.current = stored;
-          setState(stored);
-        }
+        current.current = stored;
+        setState(stored);
+        storageReady.current = true;
+        setReady(true);
       })
       .catch(() => {
-        if (active) setError("Your saved data could not be loaded.");
-      })
-      .finally(() => {
-        if (active) setReady(true);
+        if (active) setError("Your local database could not be loaded. Reopen the app to try again.");
       });
     return () => {
       active = false;
     };
   }, []);
   function commit(next: Savings) {
+    if (!storageReady.current) return;
     current.current = next;
     setState(next);
     writes.current = writes.current
-      .then(() => AsyncStorage.setItem(KEY, JSON.stringify(next)))
+      .then(() => writeSavings(JSON.stringify(next)))
       .then(() => setError(null))
       .catch(() => setError("Changes could not be saved. Please try again."));
+  }
+  async function completeOnboarding(name: string, goalName: string, amount: number) {
+    if (!storageReady.current || !name.trim() || !goalName.trim() || !Number.isSafeInteger(amount) || amount <= 0) return false;
+    if (current.current.onboardingComplete) return true;
+    const old = current.current;
+    const next: Savings = {
+      ...old,
+      name: name.trim().slice(0, 25),
+      goals: old.goals.map((goal) => goal.id === old.activeGoalId ? { ...goal, name: goalName.trim().slice(0, 35), amount } : goal),
+      onboardingComplete: true,
+    };
+    const saved = writes.current.then(() => writeSavings(JSON.stringify(next)));
+    writes.current = saved.catch(() => {});
+    try {
+      await saved;
+      current.current = next;
+      setState(next);
+      setError(null);
+      return true;
+    } catch {
+      setError("Setup could not be saved. Please try again.");
+      return false;
+    }
   }
   function add(d: Denomination) {
     const old = current.current;
@@ -239,9 +256,33 @@ export function SavingsProvider({ children }: { children: ReactNode }) {
         undo,
         adjust,
         correct,
+        completeOnboarding,
         setName: (name) => commit({ ...current.current, name }),
-        setGoal: (name, amount) =>
-          commit({ ...current.current, goal: { name, amount } }),
+        setGoal: (name, amount) => {
+          if (!name.trim() || !Number.isFinite(amount) || amount <= 0) return;
+          const old = current.current;
+          commit({
+            ...old,
+            goals: old.goals.map((goal) => goal.id === old.activeGoalId ? { ...goal, name: name.trim(), amount } : goal),
+          });
+        },
+        addGoal: (name, amount) => {
+          if (!name.trim() || !Number.isFinite(amount) || amount <= 0) return;
+          const old = current.current;
+          const goal = { id: `goal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: name.trim(), amount };
+          commit({ ...old, goals: [...old.goals, goal], activeGoalId: goal.id });
+        },
+        selectGoal: (id) => {
+          const old = current.current;
+          if (old.goals.some((goal) => goal.id === id) && id !== old.activeGoalId) commit({ ...old, activeGoalId: id });
+        },
+        removeGoal: (id) => {
+          const old = current.current;
+          if (old.goals.length <= 1 || !old.goals.some((goal) => goal.id === id)) return;
+          const goals = old.goals.filter((goal) => goal.id !== id);
+          commit({ ...old, goals, activeGoalId: old.activeGoalId === id ? goals[0].id : old.activeGoalId });
+        },
+        goal: state.goals.find((goal) => goal.id === state.activeGoalId) ?? state.goals[0],
         total: denominations.reduce((sum, d) => sum + state.counts[d] * d, 0),
         coinCount: denominations.reduce((sum, d) => sum + state.counts[d], 0),
       }}

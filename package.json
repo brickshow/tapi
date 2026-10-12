@@ -1,5 +1,5 @@
 {
-  "name": "tapi",
+  "name": "tigom",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
@@ -41,7 +41,7 @@
   "devDependencies": {
     "@types/react": "~19.2.2",
     "babel-preset-expo": "^57.0.14",
-    "eslint": "^9.0.0",
+    "eslint": "^9.39.5",
     "eslint-config-expo": "~57.0.2",
     "prettier-plugin-tailwindcss": "^0.5.11",
     "tailwindcss": "^3.4.17",
@@ -55,5 +55,11 @@
     "web": "expo start --web",
     "lint": "expo lint"
   },
-  "private": true
+  "private": true,
+  "allowScripts": {
+    "unrs-resolver@1.12.2": true
+  },
+  "overrides": {
+    "uuid": "11.1.1"
+  }
 }

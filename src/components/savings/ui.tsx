@@ -2,9 +2,9 @@ import { router } from "expo-router";
 import {
   BatteryFull,
   ChevronLeft,
-  Database,
-  Flag,
+  Coins,
   Signal,
+  Target,
   Wifi,
 } from "lucide-react-native";
 import { useId, type ReactNode } from "react";
@@ -112,6 +112,7 @@ export function Screen({
             style={styles.flex}
             contentContainerStyle={{ flexGrow: 1, paddingBottom: 14 }}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             {children}
           </ScrollView>
@@ -121,7 +122,7 @@ export function Screen({
         {footer && (
           <View
             style={{
-              paddingHorizontal: 20,
+              paddingHorizontal: 8,
               paddingBottom: Math.max(
                 insets.bottom,
                 Platform.OS === "web" ? 14 : 8,
@@ -259,16 +260,16 @@ export function BottomNav({
           )}
           <View style={{ zIndex: 1 }}>
             {tab.name === "home" ? (
-              <Panda size={34} icon light={selected !== "home"} />
+              <Panda size={28} icon light={selected !== "home"} />
             ) : tab.name === "coins" ? (
-              <Database
-                size={28}
+              <Coins
+                size={25}
                 color={selected === "coins" ? ink : "#fff"}
                 strokeWidth={1.9}
               />
             ) : (
-              <Flag
-                size={27}
+              <Target
+                size={24}
                 color={selected === "goals" ? ink : "#fff"}
                 strokeWidth={1.9}
               />
@@ -340,7 +341,7 @@ export const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   statusText: { fontSize: 12, fontWeight: "700", color: "#fff" },
-  nav: { height: 56, flexDirection: "row", paddingHorizontal: 8 },
+  nav: { height: 48, flexDirection: "row", paddingHorizontal: 8 },
   navItem: { flex: 1, alignItems: "center", justifyContent: "center" },
   action: {
     height: 52,

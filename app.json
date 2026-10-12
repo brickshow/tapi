@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "tapi",
-    "slug": "tapi",
+    "name": "tigom.",
+    "slug": "tigom",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "tapi",
+    "scheme": ["tigom", "tapi"],
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"
