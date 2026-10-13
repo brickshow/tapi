@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Platform } from "react-native";
 
 export const denominations = [20, 10, 5, 1] as const;
 export type Denomination = (typeof denominations)[number];
@@ -99,6 +100,27 @@ type Store = {
   coinCount: number;
 };
 const SavingsContext = createContext<Store | null>(null);
+
+async function refreshQuickSaveWidget(state: Savings) {
+  if (Platform.OS !== "android") return;
+  try {
+    const [{ requestWidgetUpdate }, { QuickSaveWidget }] = await Promise.all([
+      import("react-native-android-widget"),
+      import("@/widgets/quick-save-widget"),
+    ]);
+    const data = {
+      counts: state.counts,
+      total: denominations.reduce((sum, d) => sum + state.counts[d] * d, 0),
+    };
+    await requestWidgetUpdate({
+      widgetName: "TigomQuickSave",
+      renderWidget: () => <QuickSaveWidget data={data} />,
+    });
+  } catch {
+    // The app's own saving flow still works when no home-screen widget is present.
+  }
+}
+
 export function SavingsProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(initialSavings);
   const [ready, setReady] = useState(false);
@@ -121,6 +143,7 @@ export function SavingsProvider({ children }: { children: ReactNode }) {
         setState(stored);
         storageReady.current = true;
         setReady(true);
+        void refreshQuickSaveWidget(stored);
       })
       .catch(() => {
         if (active) setError("Your local database could not be loaded. Reopen the app to try again.");
@@ -135,6 +158,7 @@ export function SavingsProvider({ children }: { children: ReactNode }) {
     setState(next);
     writes.current = writes.current
       .then(() => writeSavings(JSON.stringify(next)))
+      .then(() => refreshQuickSaveWidget(next))
       .then(() => setError(null))
       .catch(() => setError("Changes could not be saved. Please try again."));
   }

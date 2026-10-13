@@ -1,15 +1,17 @@
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ArrowLeft, ChevronRight, Coins, History, Info, Pencil, Target, UserRound } from "lucide-react-native";
+import { ArrowLeft, ChevronRight, Coins, Fingerprint, History, Info, Pencil, Target, UserRound } from "lucide-react-native";
 import { useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Switch, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Screen, Text, ink, muted } from "@/components/savings/ui";
 import { useSavings } from "@/store/coins";
+import { useBiometricLock } from "@/security/biometric-lock";
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { state, goal, ready, error, setName } = useSavings();
+  const biometric = useBiometricLock();
   const [editing, setEditing] = useState(false);
   const [name, updateName] = useState("");
   const [updated, setUpdated] = useState(false);
@@ -61,6 +63,31 @@ export default function SettingsScreen() {
         )}
         {updated && !error && <Text accessibilityLiveRegion="polite" style={s.feedback}>Your name has been updated.</Text>}
         {error && <Text accessibilityRole="alert" style={[s.feedback, s.error]}>{error}</Text>}
+
+        <Text style={s.section}>SECURITY</Text>
+        <View style={s.group}>
+          <View style={s.securityRow}>
+            <View style={s.rowIcon}><Fingerprint size={21} color={ink} /></View>
+            <View style={s.rowCopy}>
+              <Text style={s.rowTitle}>Biometric lock</Text>
+              <Text style={s.rowDetail}>
+                {biometric.available
+                  ? "Ask for fingerprint or face unlock when opening tigom"
+                  : "Set up fingerprint or face unlock on this device to enable"}
+              </Text>
+            </View>
+            <Switch
+              accessibilityLabel="Biometric lock"
+              accessibilityState={{ checked: biometric.enabled, disabled: !biometric.available }}
+              disabled={!biometric.available}
+              value={biometric.enabled}
+              onValueChange={(value) => void biometric.setEnabled(value)}
+              trackColor={{ false: "#c9c9ce", true: ink }}
+              thumbColor="#fff"
+            />
+          </View>
+        </View>
+        {biometric.error && <Text accessibilityRole="alert" style={[s.feedback, s.error]}>{biometric.error}</Text>}
 
         <Text style={s.section}>YOUR SAVINGS</Text>
         <View style={s.group}>
@@ -121,6 +148,7 @@ const s = StyleSheet.create({
   section: { color: muted, fontSize: 9, letterSpacing: 2, fontWeight: "700", marginTop: 26, marginBottom: 10 },
   group: { borderRadius: 16, backgroundColor: "#f4f4f4", overflow: "hidden", paddingHorizontal: 14 },
   row: { minHeight: 72, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14 },
+  securityRow: { minHeight: 76, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: "#e1e1e1" },
   rowIcon: { width: 24, alignItems: "center" },
   rowCopy: { flex: 1, minWidth: 0 },

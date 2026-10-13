@@ -6,6 +6,7 @@ import { StatusBar } from "expo-status-bar";
 import { SavingsProvider, useSavings } from "@/store/coins";
 import { View } from "react-native";
 import { Text, ink, muted } from "@/components/savings/ui";
+import { BiometricLockGate, BiometricLockProvider } from "@/security/biometric-lock";
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -24,8 +25,12 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
   return (
     <SavingsProvider>
-      <StatusBar style="light" />
-      <AppNavigator />
+      <BiometricLockProvider>
+        <StatusBar style="light" />
+        <BiometricLockGate>
+          <AppNavigator />
+        </BiometricLockGate>
+      </BiometricLockProvider>
     </SavingsProvider>
   );
 }
